@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: wallet
+
+  # Database Connection (AWS Postgres)
+  datasource:
+    url: jdbc:postgresql://${AWS_PUBLIC_IP}:5432/fintech_ledger
+    username: dev_user
+    password: dev_password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # Caching Connection (AWS Redis)
+  data:
+    redis:
+      host: ${AWS_PUBLIC_IP}
+      port: 6379
+
+  # Event Stream (AWS Kafka)
+  kafka:
+    bootstrap-servers: ${AWS_PUBLIC_IP}:9092
