@@ -29,3 +29,5 @@ spring:
   # Event Stream (AWS Kafka)
   kafka:
     bootstrap-servers: ${AWS_PUBLIC_IP}:9092
+    producer:
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
