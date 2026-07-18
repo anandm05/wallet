@@ -37,7 +37,7 @@ public class LedgerService {
         // Publish event payload to Kafka cluster
         try {
             log.info("Publishing ledger event to Kafka for account: {}", savedEntry.getAccountId());
-            kafkaTemplate.send("wallet-transactions", savedEntry.getAccountId(), savedEntry);
+            kafkaTemplate.send("wallet-transactions", savedEntry.getAccountId().toString(), savedEntry.toString());
         } catch (Exception e) {
             log.error("Failed to dispatch event stream payload to Kafka", e);
         }
