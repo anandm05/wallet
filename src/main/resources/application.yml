@@ -28,4 +28,4 @@ spring:
 
   # Event Stream (AWS Kafka)
   kafka:
-    bootstrap-servers: ${AWS_PUBLIC_IP}:9092
+    bootstrap-servers: fintech-kafka:9092
