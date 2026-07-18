@@ -32,4 +32,16 @@ public class LedgerEntry {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    @Override
+    public String toString() {
+        return "LedgerEntry{" +
+                "id=" + id +
+                ", idempotencyKey='" + idempotencyKey + '\'' +
+                ", accountId='" + accountId + '\'' +
+                ", amount=" + amount +
+                ", type='" + type + '\'' +
+                ", createdAt=" + createdAt +
+                '}';
+    }
 }
