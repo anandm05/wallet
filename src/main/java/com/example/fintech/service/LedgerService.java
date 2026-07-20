@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
 
 @Service
@@ -15,29 +16,49 @@ import java.time.LocalDateTime;
 public class LedgerService {
 
     private final LedgerRepository ledgerRepository;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final KafkaTemplate<String, String> kafkaTemplate;
 
+    /**
+     * Database-only transactional persist method.
+     */
     @Transactional
-    public LedgerEntry saveEntry(LedgerEntry requestData, String idempotencyKey) {
-        // Create a completely clean entity instance
+    public LedgerEntry createDbEntry(LedgerEntry requestData, String idempotencyKey) {
         LedgerEntry entry = new LedgerEntry();
-
-        // Map payload fields explicitly
         entry.setAccountId(requestData.getAccountId());
         entry.setAmount(requestData.getAmount());
         entry.setType(requestData.getType());
-
-        // Enforce the system-managed keys explicitly
         entry.setIdempotencyKey(idempotencyKey);
         entry.setCreatedAt(LocalDateTime.now());
 
-        // Save the freshly constructed entity
-        LedgerEntry savedEntry = ledgerRepository.save(entry);
+        return ledgerRepository.save(entry);
+    }
 
-        // Publish event payload to Kafka cluster
+    /**
+     * Main entry point: Persists record to DB first, then dispatches to Kafka outside the DB transaction.
+     */
+    public LedgerEntry saveEntry(LedgerEntry requestData, String idempotencyKey) {
+        // 1. Commit record to Database first
+        LedgerEntry savedEntry = createDbEntry(requestData, idempotencyKey);
+
+        // 2. Publish to Kafka outside @Transactional boundary
         try {
             log.info("Publishing ledger event to Kafka for account: {}", savedEntry.getAccountId());
-            kafkaTemplate.send("wallet-transactions", savedEntry.getAccountId().toString(), savedEntry.toString()).get();
+
+            // Build a clean JSON string manually to prevent serialization issues
+            String jsonPayload = String.format(
+                    "{\"id\":%d,\"idempotencyKey\":\"%s\",\"accountId\":\"%s\",\"amount\":%.2f,\"type\":\"%s\",\"createdAt\":\"%s\"}",
+                    savedEntry.getId(),
+                    savedEntry.getIdempotencyKey(),
+                    savedEntry.getAccountId(),
+                    savedEntry.getAmount(),
+                    savedEntry.getType(),
+                    savedEntry.getCreatedAt()
+            );
+
+            // Synchronously wait for Kafka acknowledgement
+            kafkaTemplate.send("wallet-transactions", savedEntry.getAccountId(), jsonPayload).get();
+            log.info("Successfully confirmed message delivery to Kafka!");
+
         } catch (Exception e) {
             log.error("Failed to dispatch event stream payload to Kafka", e);
         }
