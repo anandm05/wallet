@@ -4,9 +4,9 @@ spring:
 
   # Database Connection (AWS Postgres)
   datasource:
-    url: jdbc:postgresql://${AWS_PUBLIC_IP}:5432/fintech_ledger
-    username: dev_user
-    password: dev_password
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/fintech_ledger}
+    username: ${DB_USERNAME:dev_user}
+    password: ${DB_PASSWORD:dev_password}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -23,9 +23,15 @@ spring:
   # Caching Connection (AWS Redis)
   data:
     redis:
-      host: ${AWS_PUBLIC_IP}
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
   # Event Stream (AWS Kafka)
   kafka:
-    bootstrap-servers: fintech-kafka:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+wallet:
+  outbox:
+    fixed-delay-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
+    batch-size: ${OUTBOX_BATCH_SIZE:50}
+    max-attempts: ${OUTBOX_MAX_ATTEMPTS:5}

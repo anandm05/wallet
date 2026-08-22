@@ -26,11 +26,10 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
                 return false;
             }
 
-            // Attempt to claim the key in Redis (SETNX wrapper)
             boolean isUnique = idempotencyService.reserveKey(key);
             if (!isUnique) {
                 response.setStatus(HttpStatus.CONFLICT.value());
-                response.getWriter().write("Duplicate transaction detected. Processing or completed.");
+                response.getWriter().write("A request with this idempotency key is already being processed.");
                 return false;
             }
         }

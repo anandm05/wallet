@@ -1,5 +1,6 @@
-# Force a clean toolchain setup natively using JDK 25
-FROM maven:3.9.9-amazoncorretto-25-al2023 AS build
+# pom.xml declares java.version=17; build with the same JDK the project
+# targets - JDK 25 silently breaks Lombok's annotation processing here.
+FROM maven:3.9.16-amazoncorretto-17-al2023 AS build
 WORKDIR /app
 
 # 1. Force absolute container context paths
@@ -10,7 +11,7 @@ COPY wallet/src ./src
 RUN mvn clean package -DskipTests
 
 # Stage 2: Low-footprint, isolated execution image
-FROM amazoncorretto:25-alpine
+FROM amazoncorretto:17-alpine
 WORKDIR /app
 COPY --from=build /app/target/wallet-0.0.1-SNAPSHOT.jar app.jar
 

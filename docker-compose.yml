@@ -1,0 +1,105 @@
+name: wallet
+
+x-mem-note: &mem-note >
+  Resource caps sized for a 1GB-RAM host running all four services
+  together (postgres + redis + kafka + app share one t3.micro).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fintech_ledger
+      POSTGRES_USER: wallet_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    # shared_buffers/max_connections trimmed from Postgres defaults - see x-mem-note
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=20"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    mem_limit: 200m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallet_user -d fintech_ledger"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  kafka:
+    image: apache/kafka:3.7.0
+    restart: unless-stopped
+    environment:
+      # Single-node KRaft (combined broker+controller) - no Zookeeper
+      # container, which alone saves ~200-400MB on this host.
+      KAFKA_NODE_ID: 1
+      CLUSTER_ID: "Iz8EEKe3Qz2D7rpQbugzAw"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # Kafka here is a short-lived relay to the balance-projection
+      # consumer, not long-term storage - keep it from eating the 30GB disk.
+      KAFKA_LOG_RETENTION_HOURS: 48
+      KAFKA_LOG_SEGMENT_BYTES: 67108864
+      KAFKA_HEAP_OPTS: "-Xmx320m -Xms320m"
+    volumes:
+      - kafkadata:/var/lib/kafka/data
+    mem_limit: 450m
+    healthcheck:
+      # Alpine's default /bin/sh has no /dev/tcp - use nc instead.
+      test: ["CMD-SHELL", "nc -z localhost 9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  app:
+    build:
+      context: ..
+      dockerfile: wallet/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/fintech_ledger
+      DB_USERNAME: wallet_user
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # Fixed heap instead of the Dockerfile's MaxRAMPercentage default -
+      # that default reasons about the whole container's view of host
+      # memory, which is wrong once postgres/redis/kafka are also
+      # claiming RAM on the same 1GB box.
+      JAVA_OPTS: "-Xmx384m -XX:+UseSerialGC"
+    ports:
+      - "8080:8080"
+    mem_limit: 450m
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+volumes:
+  pgdata:
+  kafkadata:
