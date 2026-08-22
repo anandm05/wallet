@@ -25,6 +25,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
 
   # Event Stream (AWS Kafka)
   kafka:
@@ -42,3 +43,5 @@ wallet:
     fixed-delay-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
     batch-size: ${OUTBOX_BATCH_SIZE:50}
     max-attempts: ${OUTBOX_MAX_ATTEMPTS:5}
+  kafka:
+    sasl-password: ${KAFKA_PASSWORD:}

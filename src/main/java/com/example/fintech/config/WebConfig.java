@@ -15,9 +15,11 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // Intercept only the ledger API endpoints
+        // Every money-moving write path, including admin mint - it goes
+        // through TransferService just like a regular transfer, so it gets
+        // the same idempotency protection.
         registry.addInterceptor(idempotencyInterceptor)
-                .addPathPatterns("/api/v1/transfers/**");
+                .addPathPatterns("/api/v1/transfers/**", "/api/v1/admin/accounts/*/mint");
     }
 
     // Boot 4.1's JacksonAutoConfiguration wires up the new Jackson 3

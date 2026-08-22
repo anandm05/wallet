@@ -26,6 +26,12 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // More specific matcher first - authorizeHttpRequests
+                        // is first-match-wins, so /api/v1/admin/** must be
+                        // evaluated before the general /api/v1/** rule below
+                        // or that broader rule matches first and never checks
+                        // the admin scope.
+                        .requestMatchers("/api/v1/admin/**").hasAuthority("SCOPE_wallet-api/admin")
                         .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().denyAll())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));

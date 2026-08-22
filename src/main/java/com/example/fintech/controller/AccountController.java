@@ -25,6 +25,11 @@ public class AccountController {
     private final AccountRepository accountRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
 
+    @GetMapping
+    public ResponseEntity<List<Account>> listAccounts() {
+        return ResponseEntity.ok(accountRepository.findAll());
+    }
+
     @PostMapping
     public ResponseEntity<?> createAccount(@RequestBody CreateAccountRequest request) {
         try {
