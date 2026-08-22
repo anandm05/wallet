@@ -30,6 +30,13 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
+  # Auth (AWS Cognito) - validates JWTs issued by the wallet-users pool
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${COGNITO_ISSUER_URI:https://cognito-idp.us-east-1.amazonaws.com/us-east-1_QWF7MMCpE}
+
 wallet:
   outbox:
     fixed-delay-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
