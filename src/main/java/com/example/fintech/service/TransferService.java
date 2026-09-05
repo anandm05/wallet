@@ -70,6 +70,8 @@ public class TransferService {
                 .toList();
         List<Account> locked = accountRepository.lockByAccountRefs(orderedRefs);
         if (locked.size() != orderedRefs.size()) {
+            log.warn("Rejected transaction (idempotency key {}): one or more accounts not found in {}",
+                    idempotencyKey, orderedRefs);
             throw new NoSuchElementException("One or more accounts do not exist: " + orderedRefs);
         }
         Map<String, Account> accountsByRef = new HashMap<>();
@@ -110,6 +112,8 @@ public class TransferService {
 
         writeOutboxEvent(transaction, savedEntries);
 
+        log.info("Transaction {} posted ({} legs, idempotency key {})",
+                transaction.getId(), savedEntries.size(), idempotencyKey);
         return toResponse(transaction, savedEntries);
     }
 
@@ -117,6 +121,7 @@ public class TransferService {
         BigDecimal debits = sumByDirection(request, Direction.DEBIT);
         BigDecimal credits = sumByDirection(request, Direction.CREDIT);
         if (debits.compareTo(credits) != 0) {
+            log.warn("Rejected unbalanced transaction: debits={} credits={}", debits, credits);
             throw new IllegalArgumentException("Unbalanced transaction: debits=" + debits + " credits=" + credits);
         }
     }
@@ -132,6 +137,8 @@ public class TransferService {
         BigDecimal delta = direction == Direction.CREDIT ? amount : amount.negate();
         BigDecimal updated = account.getBalance().add(delta);
         if (updated.compareTo(BigDecimal.ZERO) < 0) {
+            log.warn("Rejected transaction: insufficient funds in account {} (balance {}, requested delta {})",
+                    account.getAccountRef(), account.getBalance(), delta);
             throw new IllegalArgumentException("Insufficient funds in account " + account.getAccountRef());
         }
         account.setBalance(updated);

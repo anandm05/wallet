@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/accounts")
 @RequiredArgsConstructor
+@Slf4j
 public class AccountController {
 
     private final AccountRepository accountRepository;
@@ -38,8 +40,11 @@ public class AccountController {
             account.setCurrency(request.getCurrency() == null ? "USD" : request.getCurrency());
             account.setBalance(BigDecimal.ZERO);
             account.setCreatedAt(LocalDateTime.now());
-            return ResponseEntity.status(HttpStatus.CREATED).body(accountRepository.save(account));
+            Account saved = accountRepository.save(account);
+            log.info("Account created: {}", saved.getAccountRef());
+            return ResponseEntity.status(HttpStatus.CREATED).body(saved);
         } catch (DataIntegrityViolationException e) {
+            log.warn("Account creation rejected: {} already exists", request.getAccountRef());
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Account already exists: " + request.getAccountRef());
         }
     }

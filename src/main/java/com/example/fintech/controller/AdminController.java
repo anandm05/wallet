@@ -13,6 +13,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,7 @@ import java.util.NoSuchElementException;
 @RestController
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
+@Slf4j
 public class AdminController {
 
     private static final String TREASURY_REF = "SYSTEM_TREASURY";
@@ -52,18 +54,36 @@ public class AdminController {
                 leg(accountRef, Direction.CREDIT, request.getAmount())
         ));
 
+        log.info("Admin mint requested: account={} amount={} idempotencyKey={}",
+                accountRef, request.getAmount(), idempotencyKey);
         try {
             TransferResponse response = transferService.postTransaction(transferRequest, idempotencyKey);
             idempotencyService.updateStatus(idempotencyKey, "COMPLETED");
+            log.info("Admin mint completed: account={} amount={} transactionId={}",
+                    accountRef, request.getAmount(), response.getTransactionId());
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (DataIntegrityViolationException e) {
+            log.warn("Admin mint rejected: duplicate idempotency key {}", idempotencyKey);
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Duplicate idempotency key.");
         } catch (NoSuchElementException e) {
+            log.warn("Admin mint rejected: {}", e.getMessage());
             idempotencyService.removeKey(idempotencyKey);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (IllegalArgumentException e) {
+            log.warn("Admin mint rejected: {}", e.getMessage());
             idempotencyService.removeKey(idempotencyKey);
             return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(e.getMessage());
+        } catch (Exception e) {
+            // Matches TransferController's defensive pattern: an admin mint is a
+            // real money-movement write, so an unexpected failure here must
+            // still release the idempotency lock (otherwise a retry with the
+            // same key is permanently stuck) and must never leak a raw 500
+            // with no server-side record of what happened.
+            log.error("Admin mint failed unexpectedly: account={} amount={} idempotencyKey={}",
+                    accountRef, request.getAmount(), idempotencyKey, e);
+            idempotencyService.removeKey(idempotencyKey);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Mint failed. Safety lock released.");
         }
     }
 
