@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # JDK 17 matches pom.xml; newer JDKs break Lombok codegen here.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      # Unit tests plus the Testcontainers integration tests (real Postgres,
+      # Kafka and Redis via the runner's Docker).
+      - name: Build and test
+        run: mvn -B verify
+
+      - name: Build Docker image
+        run: docker build -f Dockerfile -t wallet:ci ..
