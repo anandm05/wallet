@@ -59,7 +59,7 @@ export async function resumeSession(): Promise<Session | null> {
   const verifier = sessionStorage.getItem(VERIFIER_KEY);
   if (code && verifier) {
     sessionStorage.removeItem(VERIFIER_KEY);
-    window.history.replaceState(null, '', window.location.pathname);
+    window.history.replaceState(null, '', import.meta.env.BASE_URL);
     const res = await fetch(`https://${config.cognitoDomain}/oauth2/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -85,6 +85,6 @@ export async function resumeSession(): Promise<Session | null> {
 
 export function logout(): void {
   sessionStorage.removeItem(TOKEN_KEY);
-  const params = new URLSearchParams({ client_id: config.cognitoClientId!, logout_uri: config.redirectUri });
+  const params = new URLSearchParams({ client_id: config.cognitoClientId!, logout_uri: config.logoutUri });
   window.location.assign(`https://${config.cognitoDomain}/logout?${params}`);
 }
