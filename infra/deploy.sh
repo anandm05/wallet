@@ -15,7 +15,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 INSTANCE_ID="i-0cc0601d0e320c3d8"
 SECURITY_GROUP_ID="sg-0751ef115d9eb66f4"
-SSH_KEY="$HOME/.ssh/anand-ssh-key.pem"
+SSH_KEY="$HOME/.ssh/fintech-key.pem"
 REMOTE_USER="ubuntu"
 REMOTE_DIR="/home/ubuntu/wallet"
 REMOTE_MARKER="$REMOTE_DIR/.deployed_commit"
@@ -79,7 +79,23 @@ echo "current IP ($MY_IP) matches the security group allow-list."
 SSH_CMD=(ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -i "$SSH_KEY" "$REMOTE_USER@$PUBLIC_IP")
 
 echo
-echo "== 5. What's actually deployed right now vs. local HEAD =="
+echo "== 5. Remote memory/disk =="
+"${SSH_CMD[@]}" "free -h && echo --- && df -h / | tail -1"
+DISK_PCT=$("${SSH_CMD[@]}" "df --output=pcent / | tail -1" | tr -dc '0-9')
+# This box filled to 74%/only 7.5GB free from accumulated build cache and
+# dangling images alone (found 2026-09-06) - none of it was ever needed
+# once a build finished. Auto-reclaim before it becomes a hard blocker,
+# same three commands verified safe that day: never touches a volume any
+# container (running or stopped) still references, so wallet_pgdata/
+# wallet_kafkadata are untouched by construction, not by luck.
+if [ "$DISK_PCT" -ge 70 ]; then
+  echo "disk at ${DISK_PCT}% - reclaiming build cache/unused images/orphaned volumes..."
+  "${SSH_CMD[@]}" "docker builder prune -af && docker image prune -af && docker volume prune -f" | tail -5
+  "${SSH_CMD[@]}" "df -h / | tail -1"
+fi
+
+echo
+echo "== 6. What's actually deployed right now vs. local HEAD =="
 LOCAL_HEAD=$(git rev-parse HEAD)
 DEPLOYED=$("${SSH_CMD[@]}" "cat $REMOTE_MARKER 2>/dev/null || true")
 if [ -z "$DEPLOYED" ]; then
@@ -103,18 +119,27 @@ fi
 
 if $DO_PUSH; then
   echo
-  echo "== 6. Pushing to GitHub =="
+  echo "== 7. Pushing to GitHub =="
   git push origin main
 fi
 
 echo
-echo "== 7. Deploying to $PUBLIC_IP =="
+echo "== 8. Deploying to $PUBLIC_IP =="
 "${SSH_CMD[@]}" bash -s <<REMOTE_SCRIPT
 set -euo pipefail
 if [ ! -d "$REMOTE_DIR/.git" ]; then
   git clone https://github.com/anandm05/wallet.git "$REMOTE_DIR"
 fi
 cd "$REMOTE_DIR"
+# Anything uncommitted in the working tree gets discarded by reset --hard
+# below - a repo caught mid-manual-edit (found 2026-09-06, the tree was
+# 7 weeks stale with a pile of never-committed local changes) loses that
+# work silently otherwise. This is the automated version of the manual tar
+# backup that day; cheap insurance every run, not just when something looks off.
+if [ -n "\$(git status --porcelain)" ] || [ -n "\$(git log origin/main..HEAD --oneline 2>/dev/null)" ]; then
+  tar czf ~/wallet-pre-deploy-backup-\$(date +%Y%m%d-%H%M%S).tar.gz --exclude=target --exclude=my-notifications/node_modules -C ~ wallet
+  echo "backed up pre-existing working tree/unpushed commits before reset"
+fi
 git fetch origin
 git checkout main
 git reset --hard origin/main

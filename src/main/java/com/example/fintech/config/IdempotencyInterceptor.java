@@ -16,7 +16,6 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        // Only enforce this for POST operations (like creating a ledger entry)
         if ("POST".equalsIgnoreCase(request.getMethod())) {
             String key = request.getHeader("X-Idempotency-Key");
 
