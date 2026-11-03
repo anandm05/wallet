@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.web.client.MockRestServiceServer;
 
 import java.time.LocalDateTime;
 
@@ -34,9 +33,13 @@ class AppendOnlyLedgerIT extends AbstractIntegrationTest {
                 "insert into ledger_transactions(idempotency_key, description, created_at) values (?, ?, now()) returning id",
                 Long.class, "audit-test-" + System.nanoTime(), "seed row for trigger test");
 
+        // Seed a balanced pair in ONE statement: the deferred balance trigger
+        // (V5) checks at commit, and each jdbc.update() auto-commits, so a
+        // single unmatched leg would be rejected before the test even starts.
         String dummyHash = "0".repeat(64);
         jdbc.update("insert into ledger_entries(transaction_id, account_id, direction, amount, created_at, prev_hash, entry_hash) " +
-                        "values (?, ?, 'CREDIT', 1.00, now(), ?, ?)",
+                        "values (?, ?, 'DEBIT', 1.00, now(), ?, ?), (?, ?, 'CREDIT', 1.00, now(), ?, ?)",
+                txId, account.getId(), dummyHash, dummyHash,
                 txId, account.getId(), dummyHash, dummyHash);
 
         // trg_ledger_entries_immutable must reject this - ledger_entries is

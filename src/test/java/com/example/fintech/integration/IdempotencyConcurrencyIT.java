@@ -6,7 +6,12 @@ import com.example.fintech.repository.LedgerEntryRepository;
 import com.example.fintech.repository.LedgerTransactionRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.*;
 
 import java.math.BigDecimal;
@@ -16,13 +21,24 @@ import java.util.Map;
 import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
+@AutoConfigureTestRestTemplate
 class IdempotencyConcurrencyIT extends AbstractIntegrationTest {
 
     @Autowired TestRestTemplate rest;
+    // /api/v1/** needs a valid JWT; stub the decoder instead of calling Cognito.
+    @MockitoBean JwtDecoder jwtDecoder;
     @Autowired AccountRepository accountRepository;
     @Autowired LedgerTransactionRepository transactionRepository;
     @Autowired LedgerEntryRepository ledgerEntryRepository;
+
+    @BeforeEach
+    void stubJwt() {
+        when(jwtDecoder.decode(anyString())).thenReturn(Jwt.withTokenValue("test-token")
+                .header("alg", "none").subject("it-user").claim("scope", "wallet-api/transfers").build());
+    }
 
     /**
      * This is the test the whole idempotency design exists to satisfy: fire
@@ -59,6 +75,7 @@ class IdempotencyConcurrencyIT extends AbstractIntegrationTest {
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
                 headers.set("X-Idempotency-Key", idempotencyKey);
+                headers.setBearerAuth("test-token");
                 return rest.postForEntity("/api/v1/transfers", new HttpEntity<>(body, headers), String.class);
             }));
         }

@@ -6,7 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -21,10 +21,6 @@ import org.testcontainers.utility.DockerImageName;
  * initializer + @DynamicPropertySource on this base class, rather than one
  * set per test class, to keep the suite's wall-clock time reasonable.
  *
- * NOTE: adjust the KafkaContainer import if your Testcontainers version
- * has moved it (some 1.20.x+ releases relocated Kafka container classes
- * to org.testcontainers.kafka.*) - this file was written without the
- * ability to compile-check against your exact dependency versions.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)

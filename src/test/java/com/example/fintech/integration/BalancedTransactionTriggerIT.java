@@ -28,11 +28,11 @@ class BalancedTransactionTriggerIT extends AbstractIntegrationTest {
 
         // A genuinely balanced pair under this transaction_id - this must
         // succeed, establishing that the trigger doesn't false-positive on
-        // valid data.
+        // valid data. Both legs go in one statement (one commit), since the
+        // deferred trigger would reject either leg committed on its own.
         jdbc.update("insert into ledger_entries(transaction_id, account_id, direction, amount, created_at, prev_hash, entry_hash) " +
-                "values (?, ?, 'DEBIT', 50.00, now(), ?, ?)", txId, accountId, genesis, h1);
-        jdbc.update("insert into ledger_entries(transaction_id, account_id, direction, amount, created_at, prev_hash, entry_hash) " +
-                "values (?, ?, 'CREDIT', 50.00, now(), ?, ?)", txId, accountId, h1, h2);
+                "values (?, ?, 'DEBIT', 50.00, now(), ?, ?), (?, ?, 'CREDIT', 50.00, now(), ?, ?)",
+                txId, accountId, genesis, h1, txId, accountId, h1, h2);
 
         // Now add a THIRD, unmatched entry under the SAME transaction_id -
         // this makes the transaction's aggregate debits != credits, which

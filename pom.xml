@@ -29,7 +29,7 @@
     <properties>
         <!-- Java 17 is the current LTS baseline supported by common cloud runtimes. -->
         <java.version>17</java.version>
-        <testcontainers.version>1.20.6</testcontainers.version>
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
     <dependencies>
         <dependency>
@@ -108,6 +108,13 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <!-- TestRestTemplate's auto-configuration needs RestTemplateBuilder,
+                 which Boot 4 moved into this separate module. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-restclient</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka-test</artifactId>
             <scope>test</scope>
@@ -146,6 +153,20 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <!-- Run the Testcontainers *IT classes in the normal test phase
+                     too, so `mvn test` and CI exercise the real Postgres/Kafka/
+                     Redis paths, not just the unit tests. -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <includes>
+                        <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
+                        <include>**/*IT.java</include>
+                    </includes>
                 </configuration>
             </plugin>
         </plugins>
