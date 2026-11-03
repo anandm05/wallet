@@ -51,6 +51,7 @@ public class TransferService {
      */
     @Transactional
     public TransferResponse postTransaction(TransferRequest request, String idempotencyKey) {
+        normalizeAmounts(request);
         validateBalanced(request);
 
         LedgerTransaction transaction = new LedgerTransaction();
@@ -115,6 +116,20 @@ public class TransferService {
         log.info("Transaction {} posted ({} legs, idempotency key {})",
                 transaction.getId(), savedEntries.size(), idempotencyKey);
         return toResponse(transaction, savedEntries);
+    }
+
+    // ledger_entries.amount is NUMERIC(19,2), so Postgres hands back e.g.
+    // 100.00 for a client's 100 or 100.0. The hash must be computed over the
+    // value as stored, or verify-chain flags untouched rows as tampered.
+    // More than 2 decimals is rejected rather than silently rounded.
+    private void normalizeAmounts(TransferRequest request) {
+        for (TransferRequest.Leg leg : request.getEntries()) {
+            try {
+                leg.setAmount(leg.getAmount().setScale(2, java.math.RoundingMode.UNNECESSARY));
+            } catch (ArithmeticException e) {
+                throw new IllegalArgumentException("amount can have at most 2 decimal places: " + leg.getAmount());
+            }
+        }
     }
 
     private void validateBalanced(TransferRequest request) {
