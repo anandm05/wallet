@@ -9,7 +9,7 @@ tamper-evident.
 
 **Stack:** Java 17 · Spring Boot 4 · PostgreSQL 16 · Flyway · Apache Kafka (KRaft) ·
 Redis · Spring Security (OAuth2/JWT, AWS Cognito) · Docker Compose · Testcontainers ·
-GitHub Actions · deployed on AWS EC2
+GitHub Actions · deployed on AWS EC2 · React + TypeScript UI
 
 ## Architecture
 
@@ -74,6 +74,32 @@ curl -X POST http://localhost:8080/api/v1/transfers \
       }'
 ```
 
+## UI
+
+`ui/` is a React + TypeScript (Vite) front end with four screens:
+
+- **Accounts:** balances, ledger history with entry hashes, and the Kafka-fed projection
+  shown next to the ledger balance so you can watch it catch up.
+- **Transfer:** posts a balanced debit/credit pair with a generated idempotency key, plus a
+  "retry with the same key" button that shows the server returning the original
+  transaction instead of charging twice.
+- **Audit:** runs `verify-chain`. In demo mode you can also edit a stored amount and watch
+  verification catch it.
+- **Admin:** funds accounts from the treasury and lists all transactions. It's only shown
+  to users with the `wallet-api/admin` scope.
+
+Sign-in is OAuth2 Authorization Code + PKCE against the Cognito hosted UI, and the access
+token is sent as a bearer token to the API. **Demo mode** runs a faithful in-browser copy of
+the rules (balanced legs, no overdraft, idempotent replay, SHA-256 hash chain, a lagging
+projection), so the UI can be tried without AWS.
+
+```bash
+cd ui
+cp .env.example .env.local   # API URL, Cognito domain and the wallet-ui client ID
+npm install
+npm run dev                  # http://localhost:3000
+```
+
 ## Tests
 
 `mvn test` runs the unit tests and integration tests against real Postgres, Kafka
@@ -85,6 +111,8 @@ and Redis containers (Testcontainers), not H2 or mocks:
 - **`BalancedTransactionTriggerIT`** proves the database itself rejects an
   unbalanced transaction at commit.
 - **`AppendOnlyLedgerIT`** proves ledger rows can't be updated or deleted.
+- **`AccountApiIT`** runs the flow the UI uses end to end: create accounts, fund from
+  the treasury, transfer, then read history, the Kafka-fed projection and `verify-chain`.
 - **`HashChainServiceTest`** covers hash computation and chain verification.
 
 CI (GitHub Actions) runs the full suite and builds the Docker image on every push.
@@ -119,9 +147,10 @@ on the server, then deploys the pushed `main` commit.
 - **The database is the last line of defence.** Balance and append-only rules
   live in triggers, so a bug in application code can't break the ledger's
   invariants.
-- **Hash-chain timestamps are truncated to microseconds** before hashing, because
-  Postgres stores microseconds. Otherwise every verification would fail on data
-  that was never touched.
+- **Hash inputs match what the database stores.** Timestamps are truncated to
+  microseconds and amounts are normalised to 2 decimal places before hashing
+  (a request for `500` is stored as `500.00`). Otherwise verification would flag
+  untouched rows as tampered. `AccountApiIT` caught the amount case.
 
 ## Known gaps
 
