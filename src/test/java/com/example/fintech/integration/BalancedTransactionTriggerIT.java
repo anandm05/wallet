@@ -1,5 +1,6 @@
 package com.example.fintech.integration;
 
+import com.example.fintech.service.TransferService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
@@ -12,27 +13,21 @@ class BalancedTransactionTriggerIT extends AbstractIntegrationTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    TransferService transferService;
+
     @Test
     void addingAnUnmatchedEntryToAnExistingTransactionIsRejectedAtCommit() {
+        String accountRef = "trigger_test_acc_" + System.nanoTime();
         Long accountId = jdbc.queryForObject(
-                "insert into accounts(account_ref, currency, balance, created_at) values (?, 'USD', 1000, now()) returning id",
-                Long.class, "trigger_test_acc_" + System.nanoTime());
+                "insert into accounts(account_ref, currency, balance, created_at) values (?, 'USD', 0, now()) returning id",
+                Long.class, accountRef);
 
-        Long txId = jdbc.queryForObject(
-                "insert into ledger_transactions(idempotency_key, description, created_at) values (?, ?, now()) returning id",
-                Long.class, "balance-trigger-test-" + System.nanoTime(), "balanced pair");
-
-        String h1 = "1".repeat(64);
+        // A genuinely balanced pair, posted through the real write path - this
+        // must succeed, establishing that the trigger doesn't false-positive
+        // on valid data (and keeping the hash chain valid for other tests).
+        Long txId = seedTransfer(transferService, accountRef, "balance-trigger-test-");
         String h2 = "2".repeat(64);
-        String genesis = "0".repeat(64);
-
-        // A genuinely balanced pair under this transaction_id - this must
-        // succeed, establishing that the trigger doesn't false-positive on
-        // valid data. Both legs go in one statement (one commit), since the
-        // deferred trigger would reject either leg committed on its own.
-        jdbc.update("insert into ledger_entries(transaction_id, account_id, direction, amount, created_at, prev_hash, entry_hash) " +
-                "values (?, ?, 'DEBIT', 50.00, now(), ?, ?), (?, ?, 'CREDIT', 50.00, now(), ?, ?)",
-                txId, accountId, genesis, h1, txId, accountId, h1, h2);
 
         // Now add a THIRD, unmatched entry under the SAME transaction_id -
         // this makes the transaction's aggregate debits != credits, which

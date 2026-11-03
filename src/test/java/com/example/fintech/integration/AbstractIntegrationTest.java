@@ -58,6 +58,25 @@ public abstract class AbstractIntegrationTest {
         registry.add("wallet.outbox.fixed-delay-ms", () -> "200");
     }
 
+    /** Posts SYSTEM_TREASURY -> accountRef for 1.00 via the real service; returns the transaction id. */
+    protected static Long seedTransfer(com.example.fintech.service.TransferService transferService,
+                                       String accountRef, String keyPrefix) {
+        com.example.fintech.dto.TransferRequest request = new com.example.fintech.dto.TransferRequest();
+        request.setDescription("test seed");
+        request.setEntries(java.util.List.of(
+                leg("SYSTEM_TREASURY", com.example.fintech.model.Direction.DEBIT),
+                leg(accountRef, com.example.fintech.model.Direction.CREDIT)));
+        return transferService.postTransaction(request, keyPrefix + System.nanoTime()).getTransactionId();
+    }
+
+    private static com.example.fintech.dto.TransferRequest.Leg leg(String ref, com.example.fintech.model.Direction direction) {
+        com.example.fintech.dto.TransferRequest.Leg leg = new com.example.fintech.dto.TransferRequest.Leg();
+        leg.setAccountRef(ref);
+        leg.setDirection(direction);
+        leg.setAmount(new java.math.BigDecimal("1.00"));
+        return leg;
+    }
+
     protected TestRestTemplate restTemplate() {
         return new TestRestTemplate();
     }

@@ -2,6 +2,7 @@ package com.example.fintech.integration;
 
 import com.example.fintech.repository.AccountRepository;
 import com.example.fintech.model.Account;
+import com.example.fintech.service.TransferService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
@@ -20,6 +21,9 @@ class AppendOnlyLedgerIT extends AbstractIntegrationTest {
     @Autowired
     AccountRepository accountRepository;
 
+    @Autowired
+    TransferService transferService;
+
     @Test
     void updatingALedgerEntryIsBlockedByTheDbTrigger() {
         Account account = new Account();
@@ -29,18 +33,9 @@ class AppendOnlyLedgerIT extends AbstractIntegrationTest {
         account.setCreatedAt(LocalDateTime.now());
         account = accountRepository.save(account);
 
-        Long txId = jdbc.queryForObject(
-                "insert into ledger_transactions(idempotency_key, description, created_at) values (?, ?, now()) returning id",
-                Long.class, "audit-test-" + System.nanoTime(), "seed row for trigger test");
-
-        // Seed a balanced pair in ONE statement: the deferred balance trigger
-        // (V5) checks at commit, and each jdbc.update() auto-commits, so a
-        // single unmatched leg would be rejected before the test even starts.
-        String dummyHash = "0".repeat(64);
-        jdbc.update("insert into ledger_entries(transaction_id, account_id, direction, amount, created_at, prev_hash, entry_hash) " +
-                        "values (?, ?, 'DEBIT', 1.00, now(), ?, ?), (?, ?, 'CREDIT', 1.00, now(), ?, ?)",
-                txId, account.getId(), dummyHash, dummyHash,
-                txId, account.getId(), dummyHash, dummyHash);
+        // Seed through the real write path (treasury -> account) so the rows
+        // carry valid hashes and don't break the global chain other tests verify.
+        Long txId = seedTransfer(transferService, account.getAccountRef(), "audit-test-");
 
         // trg_ledger_entries_immutable must reject this - ledger_entries is
         // append-only by design, not just by convention.

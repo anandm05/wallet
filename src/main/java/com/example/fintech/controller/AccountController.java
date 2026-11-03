@@ -1,6 +1,7 @@
 package com.example.fintech.controller;
 
 import com.example.fintech.model.Account;
+import com.example.fintech.model.Direction;
 import com.example.fintech.model.LedgerEntry;
 import com.example.fintech.repository.AccountRepository;
 import com.example.fintech.repository.LedgerEntryRepository;
@@ -61,8 +62,20 @@ public class AccountController {
         if (accountRepository.findByAccountRef(accountRef).isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No such account: " + accountRef);
         }
-        List<LedgerEntry> entries = ledgerEntryRepository.findByAccount_AccountRefOrderByCreatedAtAsc(accountRef);
+        List<EntryView> entries = ledgerEntryRepository.findByAccount_AccountRefOrderByCreatedAtAsc(accountRef).stream()
+                .map(EntryView::from)
+                .toList();
         return ResponseEntity.ok(entries);
+    }
+
+    // Flat view instead of the entity: the entity's lazy transaction/account
+    // associations would otherwise be serialized as Hibernate proxies.
+    public record EntryView(Long id, Long transactionId, Direction direction, BigDecimal amount,
+                            LocalDateTime createdAt, String prevHash, String entryHash) {
+        static EntryView from(LedgerEntry e) {
+            return new EntryView(e.getId(), e.getTransaction().getId(), e.getDirection(), e.getAmount(),
+                    e.getCreatedAt(), e.getPrevHash(), e.getEntryHash());
+        }
     }
 
     @Getter @Setter
