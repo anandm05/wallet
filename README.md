@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/anandm05/wallet/actions/workflows/ci.yml/badge.svg)](https://github.com/anandm05/wallet/actions/workflows/ci.yml)
 
+**[Try the UI demo →](https://anandm05.github.io/wallet/)** It runs in your browser with sample data, and no sign-in is needed.
+
 A money-movement backend built the way payment systems need to behave: every
 transfer is a balanced double-entry transaction, retries can never double-charge,
 events reach Kafka exactly when the database commit happens, and the ledger is
@@ -91,7 +93,7 @@ curl -X POST http://localhost:8080/api/v1/transfers \
 Sign-in is OAuth2 Authorization Code + PKCE against the Cognito hosted UI, and the access
 token is sent as a bearer token to the API. **Demo mode** runs a faithful in-browser copy of
 the rules (balanced legs, no overdraft, idempotent replay, SHA-256 hash chain, a lagging
-projection), so the UI can be tried without AWS.
+projection), so the UI can be tried without AWS. That is what the demo link above serves.
 
 ```bash
 cd ui

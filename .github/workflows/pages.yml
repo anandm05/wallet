@@ -1,8 +1,9 @@
 name: UI demo (GitHub Pages)
 
-# Manual for now: needs Settings -> Pages -> Source set to "GitHub Actions".
-# Once enabled, add a push trigger on ui/** to redeploy automatically.
 on:
+  push:
+    branches: [main]
+    paths: ['ui/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
